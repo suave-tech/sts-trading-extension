@@ -11,89 +11,10 @@ interface AnalysisPanelProps {
   onRefreshChart: () => void;
 }
 
-function TrendBadge({ text }: { text: string }) {
-  const lower = text.toLowerCase();
-  let color = "#eab308"; // neutral yellow
-  let label = "🟡 Neutral";
-  if (lower.includes("bullish")) {
-    color = "#22c55e";
-    label = "🟢 Bullish";
-  } else if (lower.includes("bearish")) {
-    color = "#ef4444";
-    label = "🔴 Bearish";
-  }
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "9999px",
-        fontSize: "11px",
-        fontWeight: 600,
-        color: "white",
-        background: color,
-        marginLeft: "8px",
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function ConfidenceBadge({ text }: { text: string }) {
-  const lower = text.toLowerCase();
-  let bg = "#374151";
-  let label = "";
-  if (lower.includes("confidence: high") || lower.includes("high confidence")) {
-    bg = "#166534";
-    label = "High Confidence";
-  } else if (lower.includes("confidence: medium") || lower.includes("medium confidence")) {
-    bg = "#854d0e";
-    label = "Medium Confidence";
-  } else if (lower.includes("confidence: low") || lower.includes("low confidence")) {
-    bg = "#7f1d1d";
-    label = "Low Confidence";
-  }
-  if (!label) return null;
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "9999px",
-        fontSize: "11px",
-        fontWeight: 600,
-        color: "white",
-        background: bg,
-        marginLeft: "8px",
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
 function AnalysisContent({ content }: { content: string }) {
-  const firstLine = content.split("\n")[0] ?? "";
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
-      <div style={{ marginBottom: "8px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
-        <TrendBadge text={content} />
-        <ConfidenceBadge text={content} />
-      </div>
-      <div
-        style={{
-          fontSize: "13px",
-          lineHeight: "1.6",
-          color: "#cbd5e1",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}
-      >
-        {content.replace("⚠️ This is not financial advice. Trade at your own risk.", "").trim()}
-      </div>
-      {/* Hide firstLine usage warning */}
-      <span style={{ display: "none" }}>{firstLine}</span>
+    <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
+      <Markdown content={content} />
     </div>
   );
 }

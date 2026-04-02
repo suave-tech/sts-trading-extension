@@ -14,7 +14,16 @@ type ConnectionStatus = "idle" | "testing" | "success" | "error";
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+    <div
+      style={{
+        fontSize: "11px",
+        fontWeight: 600,
+        color: "#94a3b8",
+        marginBottom: "5px",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+      }}
+    >
       {children}
     </div>
   );
@@ -85,7 +94,7 @@ export function SettingsPanel({
     });
   }, [apiKey]);
 
-  const handleTestConnection = useCallback(async () => {
+  const handleTestConnection = useCallback(() => {
     if (!apiKey.trim()) {
       setConnectionStatus("error");
       setConnectionMessage("Enter an API key first.");
@@ -93,27 +102,43 @@ export function SettingsPanel({
     }
     setConnectionStatus("testing");
     setConnectionMessage("");
-    chrome.runtime.sendMessage(
-      { type: "TEST_CONNECTION", apiKey },
-      (response: { success: boolean; error?: string }) => {
-        if (chrome.runtime.lastError || !response) {
-          setConnectionStatus("error");
-          setConnectionMessage("Could not reach background service.");
-          return;
+
+    // Ping first to ensure the service worker is awake, then test the key.
+    chrome.runtime.sendMessage({ type: "PING" }, () => {
+      // Ignore lastError from ping — worker may not respond if just waking up.
+      void chrome.runtime.lastError;
+
+      chrome.runtime.sendMessage(
+        { type: "TEST_CONNECTION", apiKey },
+        (response: { success: boolean; error?: string }) => {
+          if (chrome.runtime.lastError || !response) {
+            setConnectionStatus("error");
+            setConnectionMessage("Could not reach background service. Try again.");
+            return;
+          }
+          if (response.success) {
+            setConnectionStatus("success");
+            setConnectionMessage("API key is valid ✓");
+          } else {
+            setConnectionStatus("error");
+            setConnectionMessage(response.error ?? "Connection failed.");
+          }
         }
-        if (response.success) {
-          setConnectionStatus("success");
-          setConnectionMessage("API key is valid ✓");
-        } else {
-          setConnectionStatus("error");
-          setConnectionMessage(response.error ?? "Connection failed.");
-        }
-      }
-    );
+      );
+    });
   }, [apiKey]);
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "18px" }}>
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "18px",
+      }}
+    >
       {/* API Key */}
       <div>
         <Label>Anthropic API Key</Label>
@@ -298,7 +323,8 @@ export function SettingsPanel({
           lineHeight: "1.5",
         }}
       >
-        Your API key is stored locally in <code>chrome.storage.local</code> and is never sent anywhere except <code>api.anthropic.com</code>.
+        Your API key is stored locally in <code>chrome.storage.local</code> and is never sent
+        anywhere except <code>api.anthropic.com</code>.
       </div>
     </div>
   );

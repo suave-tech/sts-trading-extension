@@ -36,13 +36,15 @@
       ],
       "js": ["src/content/tradingview-scraper.ts"],
       "run_at": "document_idle",
-      "world": "ISOLATED"
+      "world": "ISOLATED",
+      "all_frames": true
     }
   ],
-  "permissions": ["storage", "sidePanel", "activeTab", "scripting"],
+  "permissions": ["storage", "sidePanel", "activeTab", "scripting", "webNavigation"],
   "host_permissions": [
     "https://www.tradingview.com/*",
     "https://app.hyperliquid.xyz/*",
+    "https://api.hyperliquid.xyz/*",
     "https://www.binance.com/*",
     "https://www.bybit.com/*",
     "https://pro.kraken.com/*",
@@ -51,6 +53,6 @@
     "https://api.anthropic.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.anthropic.com"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.anthropic.com https://api.hyperliquid.xyz"
   }
 }

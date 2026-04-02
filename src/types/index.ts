@@ -15,6 +15,7 @@ export interface IndicatorValues {
   ma50?: number;
   ma200?: number;
   volume?: string;
+  candleSummary?: string; // OHLCV table for price action context (API-sourced)
   [key: string]: string | number | undefined;
 }
 
@@ -44,7 +45,8 @@ export type ExtensionMessageType =
   | "ANALYSIS_ERROR"
   | "CLEAR_CONVERSATION"
   | "GET_CHART_DATA"
-  | "SCRAPE_REQUEST";
+  | "SCRAPE_REQUEST"
+  | "FETCH_API_CHART_DATA";
 
 export interface ExtensionMessage {
   type: ExtensionMessageType;

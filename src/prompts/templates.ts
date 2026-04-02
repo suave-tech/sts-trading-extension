@@ -19,12 +19,9 @@ If data is missing or incomplete, work with what is available and note gaps.`;
 // ─── Risk Tolerance Modifiers ─────────────────────────────────────────────────
 
 const RISK_MODIFIERS: Record<RiskTolerance, string> = {
-  conservative:
-    "Prioritize capital preservation. Only suggest high-confidence setups.",
-  moderate:
-    "Balance risk and reward. Flag medium-confidence setups as speculative.",
-  aggressive:
-    "Include higher-risk setups. Clearly label speculative plays.",
+  conservative: "Prioritize capital preservation. Only suggest high-confidence setups.",
+  moderate: "Balance risk and reward. Flag medium-confidence setups as speculative.",
+  aggressive: "Include higher-risk setups. Clearly label speculative plays.",
 };
 
 // ─── Trading Style Templates ──────────────────────────────────────────────────
@@ -32,35 +29,47 @@ const RISK_MODIFIERS: Record<RiskTolerance, string> = {
 function formatIndicators(indicators: ChartData["indicators"]): string {
   const parts: string[] = [];
 
-  if (indicators.rsi !== undefined)
-    parts.push(`RSI: ${indicators.rsi}`);
+  if (indicators.rsi !== undefined) parts.push(`RSI(14): ${indicators.rsi}`);
   if (indicators.macd !== undefined)
     parts.push(
-      `MACD: ${indicators.macd}${indicators.macdSignal ? ` | Signal: ${indicators.macdSignal}` : ""}${indicators.macdHistogram ? ` | Histogram: ${indicators.macdHistogram}` : ""}`
+      `MACD: ${indicators.macd} | Signal: ${indicators.macdSignal ?? "N/A"} | Histogram: ${indicators.macdHistogram ?? "N/A"}`
     );
-  if (indicators.ma20 !== undefined)
-    parts.push(`MA20: ${indicators.ma20}`);
-  if (indicators.ma50 !== undefined)
-    parts.push(`MA50: ${indicators.ma50}`);
-  if (indicators.ma200 !== undefined)
-    parts.push(`MA200: ${indicators.ma200}`);
-  if (indicators.volume !== undefined)
-    parts.push(`Volume: ${indicators.volume}`);
+  if (indicators.ma20 !== undefined) parts.push(`MA20: ${indicators.ma20}`);
+  if (indicators.ma50 !== undefined) parts.push(`MA50: ${indicators.ma50}`);
+  if (indicators.ma200 !== undefined) parts.push(`MA200: ${indicators.ma200}`);
+  if (indicators.volume !== undefined) parts.push(`Volume: ${indicators.volume}`);
 
-  // Any additional custom indicators
-  const standardKeys = new Set(["rsi", "macd", "macdSignal", "macdHistogram", "ma20", "ma50", "ma200", "volume"]);
+  // Any extra indicators from DOM scraping (bbUpper, bbLower, etc.)
+  const standardKeys = new Set([
+    "rsi",
+    "macd",
+    "macdSignal",
+    "macdHistogram",
+    "ma20",
+    "ma50",
+    "ma200",
+    "volume",
+    "candleSummary",
+  ]);
   for (const [key, value] of Object.entries(indicators)) {
     if (!standardKeys.has(key) && value !== undefined) {
       parts.push(`${key}: ${value}`);
     }
   }
 
-  return parts.length > 0 ? parts.join(", ") : "No indicators available";
+  return parts.length > 0 ? parts.join(" | ") : "No indicators available";
 }
 
 function buildBaseContext(data: ChartData): string {
   const priceStr = data.price ? ` | Price: ${data.price}` : "";
-  return `Symbol: ${data.symbol} | Timeframe: ${data.timeframe}${priceStr}\nIndicators: ${formatIndicators(data.indicators)}`;
+  const indicatorLine = `Indicators: ${formatIndicators(data.indicators)}`;
+
+  // Candle summary is appended as its own block when available (API-sourced data)
+  const candleBlock = data.indicators.candleSummary
+    ? `\n\nPrice Action Data:\n${data.indicators.candleSummary}`
+    : "";
+
+  return `Symbol: ${data.symbol} | Timeframe: ${data.timeframe}${priceStr}\n${indicatorLine}${candleBlock}`;
 }
 
 const STYLE_TEMPLATES: Record<TradingStyle, (data: ChartData) => string> = {

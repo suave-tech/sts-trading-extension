@@ -1,7 +1,6 @@
 import type { ChartData, ChartDataUpdateMessage, IndicatorValues } from "../types";
 
 // ─── Host Detection ───────────────────────────────────────────────────────────
-// Determines whether we're on native TradingView or an embedded TV chart host.
 
 type KnownHost =
   | "tradingview"
@@ -25,40 +24,49 @@ function detectHost(): KnownHost {
   return "unknown";
 }
 
-// ─── DOM Selectors ─────────────────────────────────────────────────────────────
-// These are best-effort selectors that may drift as TradingView updates its UI.
-// The scraper must handle null results gracefully — never crash on missing data.
-//
-// NOTE: When TradingView is *embedded* in third-party platforms, the TV charting
-// library still renders the same legend/indicator DOM inside an iframe or shadow
-// container. The toolbar (symbol search, timeframe buttons) is replaced by the
-// host platform's own UI, so we fall back to URL path and page title for those.
+// ─── TV Chart Presence Check ──────────────────────────────────────────────────
+// TradingView's charting library always renders at least one <canvas> element.
+// We use that as the most reliable signal that the chart has mounted, with
+// additional class-based checks as early signals.
+
+function hasTradingViewChart(): boolean {
+  // Canvas is the most reliable — TV always renders into canvas
+  const canvases = document.querySelectorAll("canvas");
+  if (canvases.length > 0) return true;
+
+  // Class-based checks as secondary signals
+  return !!(
+    document.querySelector('div[class*="chart-container"]') ||
+    document.querySelector('div[class*="pane-legend"]') ||
+    document.querySelector('div[class*="tv-chart"]') ||
+    document.querySelector("#header-toolbar-symbol-search")
+  );
+}
+
+// ─── DOM Selectors ────────────────────────────────────────────────────────────
 
 const SELECTORS = {
-  // Native TradingView toolbar
   symbolButton: "#header-toolbar-symbol-search",
   timeframeActive: [
     'button[class*="isActive"][class*="item-"][class*="timeframe"]',
     'div[class*="timeframes"] button[class*="active"]',
     'button[data-value][class*="selected"]',
+    'div[class*="group-"] button[class*="isActive"]',
+    'button[class*="isActive"]',
   ],
-
-  // Price — same across native + embedded (TV charting lib renders these)
   lastPrice: [
     'div[class*="lastPrice"]',
     'div[class*="price-axis"] span[class*="price"]',
     'div[class*="chart-value-item"] span',
-    // Hyperliquid / generic exchange price tickers
     'div[class*="markPrice"]',
     'span[class*="lastPrice"]',
     '[data-testid="last-price"]',
   ],
-
-  // TV charting legend rows — same DOM structure whether native or embedded
-  legendRows:
-    'div[class*="pane-legend-line"], div[class*="legend-source-item"], div[class*="legendItem"]',
-
-  // Generic timeframe button sweep (used for embedded hosts)
+  legendRows: [
+    'div[class*="pane-legend-line"]',
+    'div[class*="legend-source-item"]',
+    'div[class*="legendItem"]',
+  ].join(", "),
   anyTimeframeButton: 'button[class*="item-"]',
 } as const;
 
@@ -66,94 +74,66 @@ const SELECTORS = {
 
 const HOST_SYMBOL_SCRAPERS: Partial<Record<KnownHost, () => string | null>> = {
   hyperliquid: () => {
-    // URL pattern: /trade/BTC  or  /trade/BTC-PERP
     const match = window.location.pathname.match(/\/trade\/([A-Z0-9-]+)/i);
     if (match?.[1]) return match[1].toUpperCase().replace(/-PERP$/i, "");
-
-    // Fallback: look for the selected asset in their UI
-    const asset = document.querySelector(
-      '[class*="selectedAsset"], [class*="assetName"], [class*="tradePair"]'
-    );
-    return asset?.textContent?.trim().split(/[\s/]/)[0] ?? null;
-  },
-
-  binance: () => {
-    // URL: /en/trade/BTC_USDT
-    const match = window.location.pathname.match(/\/trade\/([A-Z0-9_]+)/i);
-    if (match?.[1]) return match[1].replace("_", "");
-
-    return (
-      document.querySelector('[class*="headerSymbol"], [class*="tradePair"]')
-        ?.textContent?.trim()
-        .split(/\s/)[0] ?? null
-    );
-  },
-
-  bybit: () => {
-    // URL: /trade/spot/BTC/USDT  or  /trade/usdt/BTCUSDT
-    const parts = window.location.pathname.split("/").filter(Boolean);
-    const tradeIdx = parts.indexOf("trade");
-    if (tradeIdx !== -1 && parts[tradeIdx + 2]) {
-      return (parts[tradeIdx + 1] + parts[tradeIdx + 2]).toUpperCase();
-    }
-    if (tradeIdx !== -1 && parts[tradeIdx + 2] === undefined && parts[tradeIdx + 1]) {
-      return parts[tradeIdx + 1].toUpperCase();
-    }
     return null;
   },
-
+  binance: () => {
+    const match = window.location.pathname.match(/\/trade\/([A-Z0-9_]+)/i);
+    if (match?.[1]) return match[1].replace("_", "");
+    return null;
+  },
+  bybit: () => {
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    const tradeIdx = parts.indexOf("trade");
+    if (tradeIdx !== -1 && parts[tradeIdx + 2])
+      return (parts[tradeIdx + 1] + parts[tradeIdx + 2]).toUpperCase();
+    if (tradeIdx !== -1 && parts[tradeIdx + 1])
+      return parts[tradeIdx + 1].toUpperCase();
+    return null;
+  },
   kraken: () => {
-    // URL: /app/trade/BTC-USD
     const match = window.location.pathname.match(/\/trade\/([A-Z0-9-]+)/i);
     return match?.[1]?.toUpperCase() ?? null;
   },
-
   okx: () => {
-    // URL: /trade-spot/btc-usdt
     const match = window.location.pathname.match(/\/trade-[^/]+\/([a-z0-9-]+)/i);
     return match?.[1]?.toUpperCase().replace(/-/g, "") ?? null;
   },
-
   coinbase: () => {
-    // URL: /advanced-trade/spot/BTC-USD
     const match = window.location.pathname.match(/\/advanced-trade\/[^/]+\/([A-Z0-9-]+)/i);
     return match?.[1]?.toUpperCase() ?? null;
   },
 };
 
-// ─── Scraper Utilities ────────────────────────────────────────────────────────
+// ─── Scrapers ─────────────────────────────────────────────────────────────────
 
 function tryQueryText(selectors: readonly string[]): string | null {
   for (const selector of selectors) {
     try {
       const el = document.querySelector(selector);
-      if (el?.textContent?.trim()) {
-        return el.textContent.trim();
-      }
-    } catch {
-      // Selector may be invalid after update — continue
-    }
+      if (el?.textContent?.trim()) return el.textContent.trim();
+    } catch { /* continue */ }
   }
   return null;
 }
 
 function scrapeSymbol(host: KnownHost): string {
-  // 1. Use host-specific scraper if available
+  // 1. Host-specific URL scraper (most reliable — URL never lies)
   const hostScraper = HOST_SYMBOL_SCRAPERS[host];
   if (hostScraper) {
     const result = hostScraper();
     if (result) return result;
   }
 
-  // 2. Native TradingView toolbar symbol button
+  // 2. Native TV toolbar symbol button
   const symbolBtn = document.querySelector(SELECTORS.symbolButton);
   if (symbolBtn?.textContent?.trim()) {
     const text = symbolBtn.textContent.trim().split(/\s+/)[0];
-    if (text && text.length > 0) return text;
+    if (text) return text;
   }
 
-  // 3. Parse the page title (works on native TV and many embedded hosts)
-  //    Formats seen: "BTCUSDT — TradingView", "BTC/USDT | Hyperliquid", "BTC/USDT Perpetual | Binance"
+  // 3. Page title: "BTCUSDT — TradingView", "BTC/USDT | Hyperliquid"
   const title = document.title;
   if (title) {
     const match = title.match(/^([A-Z0-9.:/-]+)\s*[—–|/\\]/);
@@ -164,46 +144,77 @@ function scrapeSymbol(host: KnownHost): string {
 }
 
 function scrapeTimeframe(host: KnownHost): string {
-  // All known hosts render the TV timeframe toolbar once the chart loads.
-  // Try the standard selectors first.
+  // 1. Standard TV active timeframe buttons
   for (const selector of SELECTORS.timeframeActive) {
     try {
       const el = document.querySelector(selector);
-      if (el?.textContent?.trim()) return el.textContent.trim();
-    } catch {
-      // Continue
-    }
+      const text = el?.textContent?.trim() ?? "";
+      if (text && /^(1|3|5|15|30|45|60|120|180|240|D|W|M|1D|1W|1M|\d+[mhDW])$/i.test(text)) {
+        return text;
+      }
+    } catch { /* continue */ }
   }
 
-  // data attribute fallback (some embedded wrappers set this)
+  // 2. data attribute
   const byData = document.querySelector("[data-active-chart-timeframe]");
-  if (byData) {
-    const val = byData.getAttribute("data-active-chart-timeframe");
-    if (val) return val;
+  if (byData?.getAttribute("data-active-chart-timeframe")) {
+    return byData.getAttribute("data-active-chart-timeframe")!;
   }
 
-  // Scan all item-class buttons for active timeframe labels
-  const buttons = document.querySelectorAll(SELECTORS.anyTimeframeButton);
+  // 3. Scan ALL buttons for one with an active/selected class and a timeframe label
+  const buttons = document.querySelectorAll("button");
   for (const btn of buttons) {
     const text = btn.textContent?.trim() ?? "";
     if (/^(1|3|5|15|30|45|60|120|180|240|D|W|M|1D|1W|1M)$/.test(text)) {
-      const classes = btn.className;
+      const cls = btn.className;
       if (
-        classes.includes("active") ||
-        classes.includes("selected") ||
-        classes.includes("isActive")
+        cls.includes("active") ||
+        cls.includes("selected") ||
+        cls.includes("isActive") ||
+        btn.getAttribute("aria-selected") === "true" ||
+        btn.getAttribute("data-active") === "true"
       ) {
         return text;
       }
     }
   }
 
-  // Hyperliquid-specific: timeframe is often in a segmented control
+  // 4. Hyperliquid renders the active timeframe in its own toolbar above the chart.
+  //    The selected button often has a distinct background/border class.
+  //    Scan all buttons matching short timeframe patterns and pick the "active" one.
   if (host === "hyperliquid") {
-    const tfBtn = document.querySelector(
-      '[class*="timeframe"][class*="selected"], [class*="interval"][class*="active"]'
-    );
-    if (tfBtn?.textContent?.trim()) return tfBtn.textContent.trim();
+    const allBtns = document.querySelectorAll("button");
+    // Collect candidates that look like timeframe buttons
+    const tfCandidates: Element[] = [];
+    for (const btn of allBtns) {
+      const text = btn.textContent?.trim() ?? "";
+      if (/^\d+[mhDW]$|^[DWM]$/i.test(text)) {
+        tfCandidates.push(btn);
+      }
+    }
+    // Among candidates, pick the one whose parent or self has a visual selection cue
+    for (const btn of tfCandidates) {
+      const combined = btn.className + (btn.parentElement?.className ?? "");
+      if (
+        combined.includes("active") ||
+        combined.includes("selected") ||
+        combined.includes("current") ||
+        combined.includes("highlight") ||
+        combined.includes("bold") ||
+        btn.getAttribute("aria-pressed") === "true"
+      ) {
+        return btn.textContent?.trim() ?? "UNKNOWN";
+      }
+    }
+  }
+
+  // 5. Parse the TV legend title: "BTCUSD · 4h · Hyperliquid"
+  const legendTitle = document.querySelector(
+    'div[class*="pane-legend-title"], div[class*="chart-title"], div[class*="main-title"]'
+  );
+  if (legendTitle?.textContent) {
+    const tfMatch = legendTitle.textContent.match(/\b(\d+[mhDW]|[DWM])\b/i);
+    if (tfMatch?.[1]) return tfMatch[1];
   }
 
   return "UNKNOWN";
@@ -221,42 +232,93 @@ function scrapeLegendIndicators(): IndicatorValues {
 
     for (const row of legendRows) {
       const text = row.textContent?.trim() ?? "";
+      if (!text) continue;
 
+      // RSI — "RSI 14 · 39.89", "RSI (14) ▲ 58.24"
       if (/^RSI/i.test(text)) {
-        const match = text.match(/(\d+\.?\d*)\s*$/);
-        if (match?.[1]) indicators.rsi = parseFloat(match[1]);
+        const match = text.match(/[▲▼]?\s*(\d+\.?\d+)\s*$/) ?? text.match(/(\d+\.?\d+)\s*$/);
+        if (match?.[1]) indicators.rsi = Number.parseFloat(match[1]);
       }
 
+      // MACD — "MACD 12 26 close 9 · -71.398 · -26.533 · 44.755"
       if (/^MACD/i.test(text)) {
-        const values = text.match(/[-]?\d+\.?\d*/g);
+        const values = text.match(/[-−]?\d+\.\d+/g);
         if (values?.[0]) indicators.macd = values[0];
         if (values?.[1]) indicators.macdSignal = values[1];
         if (values?.[2]) indicators.macdHistogram = values[2];
       }
 
-      if (/^MA\s*20|EMA\s*20/i.test(text)) {
-        const match = text.match(/(\d+\.?\d*)\s*$/);
-        if (match?.[1]) indicators.ma20 = parseFloat(match[1]);
-      }
-      if (/^MA\s*50|EMA\s*50/i.test(text)) {
-        const match = text.match(/(\d+\.?\d*)\s*$/);
-        if (match?.[1]) indicators.ma50 = parseFloat(match[1]);
-      }
-      if (/^MA\s*200|EMA\s*200/i.test(text)) {
-        const match = text.match(/(\d+\.?\d*)\s*$/);
-        if (match?.[1]) indicators.ma200 = parseFloat(match[1]);
+      // Bollinger Bands — "BB 20 2 · 67,554 · 69,084 · 66,025"
+      if (/^BB\s/i.test(text)) {
+        const nums = text.replace(/,/g, "").match(/\d+\.?\d*/g);
+        if (nums && nums.length >= 4) {
+          indicators.bbMiddle = Number.parseFloat(nums[1]);
+          indicators.bbUpper = Number.parseFloat(nums[2]);
+          indicators.bbLower = Number.parseFloat(nums[3]);
+        }
       }
 
+      // Moving averages
+      if (/^(MA|EMA)\s*20\b/i.test(text)) {
+        const match = text.replace(/,/g, "").match(/(\d+\.?\d*)\s*$/);
+        if (match?.[1]) indicators.ma20 = Number.parseFloat(match[1]);
+      }
+      if (/^(MA|EMA)\s*50\b/i.test(text)) {
+        const match = text.replace(/,/g, "").match(/(\d+\.?\d*)\s*$/);
+        if (match?.[1]) indicators.ma50 = Number.parseFloat(match[1]);
+      }
+      if (/^(MA|EMA)\s*200\b/i.test(text)) {
+        const match = text.replace(/,/g, "").match(/(\d+\.?\d*)\s*$/);
+        if (match?.[1]) indicators.ma200 = Number.parseFloat(match[1]);
+      }
+
+      // Volume — "Volume SMA · 735.28"
       if (/^Vol/i.test(text)) {
-        const match = text.match(/([\d,.]+[KMB]?)\s*$/i);
+        const match = text.replace(/,/g, "").match(/([\d.]+[KMB]?)\s*$/i);
         if (match?.[1]) indicators.volume = match[1];
       }
     }
-  } catch {
-    // DOM query failed — return whatever we have
-  }
+  } catch { /* return whatever we have */ }
 
   return indicators;
+}
+
+// ─── Debug report ─────────────────────────────────────────────────────────────
+
+function buildDebugReport(): object {
+  const host = detectHost();
+  const hasChart = hasTradingViewChart();
+  const data = scrapeChartData();
+
+  const legendEls = document.querySelectorAll(SELECTORS.legendRows);
+  const legendTexts = Array.from(legendEls)
+    .map((el) => el.textContent?.trim())
+    .filter(Boolean);
+
+  const canvasCount = document.querySelectorAll("canvas").length;
+
+  // All buttons that look like timeframe buttons
+  const allButtons = Array.from(document.querySelectorAll("button"))
+    .filter((b) => /^(\d+[mhDW]?|[DWM])$/i.test(b.textContent?.trim() ?? ""))
+    .map((b) => ({
+      text: b.textContent?.trim(),
+      className: b.className.slice(0, 120),
+      ariaSelected: b.getAttribute("aria-selected"),
+      ariaPressed: b.getAttribute("aria-pressed"),
+      dataActive: b.getAttribute("data-active"),
+    }));
+
+  return {
+    host,
+    hasChart,
+    canvasCount,
+    url: window.location.href,
+    title: document.title,
+    scrapedData: data,
+    legendRowsFound: legendTexts.length,
+    legendTexts,
+    timeframeButtonCandidates: allButtons,
+  };
 }
 
 export function scrapeChartData(): ChartData {
@@ -273,16 +335,24 @@ export function scrapeChartData(): ChartData {
 // ─── Message Dispatch ─────────────────────────────────────────────────────────
 
 function sendChartDataToBackground(data: ChartData): void {
+  // Only suppress if we're on an unknown host with no data at all —
+  // on supported hosts always send even if partial, so the side panel
+  // can at least show the symbol and trigger an analysis.
+  const host = detectHost();
+  const hasAnything = data.symbol !== "UNKNOWN" ||
+    Object.keys(data.indicators).length > 0 ||
+    !!data.price;
+
+  if (host === "unknown" && !hasAnything) return;
+
   const message: ChartDataUpdateMessage = {
     type: "CHART_DATA_UPDATE",
     payload: data,
   };
-  chrome.runtime.sendMessage(message).catch(() => {
-    // Extension may have been reloaded — ignore
-  });
+  chrome.runtime.sendMessage(message).catch(() => { /* extension reloaded */ });
 }
 
-// ─── MutationObserver — Chart Change Detection ────────────────────────────────
+// ─── MutationObserver ─────────────────────────────────────────────────────────
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 1500;
@@ -290,66 +360,53 @@ const DEBOUNCE_MS = 1500;
 function onChartMutation(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    const data = scrapeChartData();
-    sendChartDataToBackground(data);
+    sendChartDataToBackground(scrapeChartData());
   }, DEBOUNCE_MS);
 }
 
 function startObserver(): void {
   const targets: Element[] = [];
 
-  // Native TV toolbar
   const symbolEl = document.querySelector(SELECTORS.symbolButton);
   if (symbolEl) targets.push(symbolEl);
 
-  const toolbar = document.querySelector(
-    'div[class*="toolbar-"], div[id*="header-toolbar"]'
-  );
+  const toolbar = document.querySelector('div[class*="toolbar-"], div[id*="header-toolbar"]');
   if (toolbar) targets.push(toolbar);
 
-  // Fallback: observe the full body (catches SPA route changes on embedded hosts)
-  if (targets.length === 0) {
-    targets.push(document.body);
-  }
+  // Watch the legend container so indicator values update as the chart moves
+  const legend = document.querySelector('div[class*="pane-legend"], div[class*="chart-container"]');
+  if (legend) targets.push(legend);
+
+  if (targets.length === 0) targets.push(document.body);
 
   const observer = new MutationObserver(onChartMutation);
-
   for (const target of targets) {
     observer.observe(target, {
       childList: true,
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["class", "data-value", "href"],
+      attributeFilter: ["class", "data-value"],
     });
   }
 }
 
 // ─── SPA Navigation Detection ─────────────────────────────────────────────────
-// Single-page apps (Hyperliquid, Binance, etc.) change the URL without a full
-// page reload. We watch pushState / popstate to detect symbol changes.
 
 function watchSpaNavigation(): void {
   const handleNavigation = () => {
-    // Give the SPA time to render the new chart before scraping
-    setTimeout(() => {
-      const data = scrapeChartData();
-      sendChartDataToBackground(data);
-    }, 1500);
+    setTimeout(() => sendChartDataToBackground(scrapeChartData()), 1500);
   };
 
-  // Patch pushState
   const originalPushState = history.pushState.bind(history);
   history.pushState = (...args) => {
     originalPushState(...args);
     handleNavigation();
   };
-
-  // Also listen for browser back/forward
   window.addEventListener("popstate", handleNavigation);
 }
 
-// ─── Message Listener (respond to manual scrape requests) ─────────────────────
+// ─── Message Listener ─────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "SCRAPE_REQUEST") {
@@ -357,14 +414,51 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ success: true, data });
     sendChartDataToBackground(data);
   }
+  if (message?.type === "DEBUG_SCRAPE") {
+    sendResponse(buildDebugReport());
+  }
   return true;
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+// Strategy:
+// - On native TradingView: scrape immediately, the chart is always present.
+// - On embedded/SPA hosts (Hyperliquid etc.): the chart loads async after the
+//   JS framework mounts. Poll every 500ms until we see canvas elements (the
+//   most reliable signal that TV has rendered), then scrape.
 
 (function init() {
-  const data = scrapeChartData();
-  sendChartDataToBackground(data);
-  startObserver();
+  const host = detectHost();
+
+  if (host === "unknown") return; // Not a supported platform
+
+  if (host === "tradingview") {
+    // Native TV — chart is present at document_idle
+    sendChartDataToBackground(scrapeChartData());
+    startObserver();
+    watchSpaNavigation();
+    return;
+  }
+
+  // SPA host (Hyperliquid, Binance, etc.)
+  // Step 1: send the symbol from the URL immediately — the background will
+  //         detect missing indicators and auto-fetch from the platform API.
+  sendChartDataToBackground(scrapeChartData());
+
+  // Step 2: also poll for the chart to render so we can pick up the timeframe
+  //         from the UI (the API fetch will use a default if we never find it).
+  let attempts = 0;
+  const MAX_ATTEMPTS = 40; // 20 seconds
+  const poll = setInterval(() => {
+    attempts++;
+    const data = scrapeChartData();
+    const hasTimeframe = data.timeframe !== "UNKNOWN";
+    if (hasTimeframe || attempts >= MAX_ATTEMPTS) {
+      clearInterval(poll);
+      if (hasTimeframe) sendChartDataToBackground(data);
+      startObserver();
+    }
+  }, 500);
+
   watchSpaNavigation();
 })();

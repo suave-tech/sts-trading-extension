@@ -12,7 +12,8 @@ export function useChartData() {
     });
   }, []);
 
-  // Listen for live chart updates pushed from the content script → background → here
+  // Listen for live chart updates pushed from content script → background → here
+  // This fires both for DOM scrapes AND for enriched API data
   useEffect(() => {
     function handleMessage(message: ExtensionMessage) {
       if (message.type === "CHART_DATA_UPDATE") {
@@ -24,11 +25,38 @@ export function useChartData() {
   }, []);
 
   const refreshChartData = useCallback(() => {
+    if (!chartData) {
+      chrome.runtime.sendMessage({ type: "SCRAPE_REQUEST" }, (response) => {
+        if (chrome.runtime.lastError) return;
+        if (response?.data) setChartData(response.data as ChartData);
+      });
+      return;
+    }
+
+    // If we have a symbol but no indicators, this is a platform that doesn't
+    // support DOM scraping (e.g. Hyperliquid). Go straight to the API.
+    const hasIndicators = Object.keys(chartData.indicators ?? {}).length > 0;
+    if (!hasIndicators && chartData.symbol !== "UNKNOWN") {
+      chrome.runtime.sendMessage(
+        {
+          type: "FETCH_API_CHART_DATA",
+          symbol: chartData.symbol,
+          timeframe: chartData.timeframe,
+        },
+        (response) => {
+          if (chrome.runtime.lastError) return;
+          if (response?.data) setChartData(response.data as ChartData);
+        }
+      );
+      return;
+    }
+
+    // Standard DOM scrape for native TV and other platforms
     chrome.runtime.sendMessage({ type: "SCRAPE_REQUEST" }, (response) => {
       if (chrome.runtime.lastError) return;
       if (response?.data) setChartData(response.data as ChartData);
     });
-  }, []);
+  }, [chartData]);
 
   return { chartData, refreshChartData };
 }
