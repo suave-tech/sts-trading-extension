@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 // ─── Pure helpers replicated from tradingview-scraper.ts for unit testing ─────
 // (The module itself can't be imported in JSDOM because it calls chrome.runtime
@@ -69,7 +69,7 @@ function parseIndicatorLine(text: string): Record<string, string | number> {
   const result: Record<string, string | number> = {};
   if (/^RSI/i.test(text)) {
     const match = text.match(/(\d+\.?\d*)\s*$/);
-    if (match?.[1]) result.rsi = parseFloat(match[1]);
+    if (match?.[1]) result.rsi = Number.parseFloat(match[1]);
   }
   if (/^MACD/i.test(text)) {
     const values = text.match(/[-]?\d+\.?\d*/g);
@@ -78,7 +78,7 @@ function parseIndicatorLine(text: string): Record<string, string | number> {
   }
   if (/^MA\s*200|EMA\s*200/i.test(text)) {
     const match = text.match(/(\d+\.?\d*)\s*$/);
-    if (match?.[1]) result.ma200 = parseFloat(match[1]);
+    if (match?.[1]) result.ma200 = Number.parseFloat(match[1]);
   }
   if (/^Vol/i.test(text)) {
     const match = text.match(/([\d,.]+[KMB]?)\s*$/i);

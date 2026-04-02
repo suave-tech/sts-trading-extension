@@ -25,6 +25,7 @@ export interface ChartData {
   price?: string;
   indicators: IndicatorValues;
   scrapedAt: number;
+  liquidationSummary?: string; // Coinglass liquidation map text block
 }
 
 // ─── Messages ─────────────────────────────────────────────────────────────────

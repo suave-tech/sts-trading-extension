@@ -1,4 +1,5 @@
 import type { ChartData, RiskTolerance, TradingStyle } from "../../types";
+import { Markdown } from "./Markdown";
 
 interface AnalysisPanelProps {
   latestAnalysis: string | null;
@@ -35,7 +36,7 @@ function LoadingSkeleton() {
           }}
         />
       ))}
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`}</style>
+      <style>{"@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }"}</style>
     </div>
   );
 }
@@ -82,6 +83,7 @@ export function AnalysisPanel({
           )}
         </div>
         <button
+          type="button"
           onClick={onRefreshChart}
           title="Re-scrape chart"
           style={{
@@ -151,6 +153,7 @@ export function AnalysisPanel({
       {/* Analyze button */}
       <div style={{ padding: "10px 12px", borderTop: "1px solid #2d3748", flexShrink: 0 }}>
         <button
+          type="button"
           onClick={onRequestAnalysis}
           disabled={isLoading || !chartData}
           style={{

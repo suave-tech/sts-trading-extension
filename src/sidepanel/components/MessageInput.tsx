@@ -78,6 +78,7 @@ export function MessageInput({
         }}
       />
       <button
+        type="button"
         onClick={handleSend}
         disabled={disabled || !value.trim()}
         style={{

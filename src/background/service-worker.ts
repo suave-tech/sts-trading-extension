@@ -1,4 +1,5 @@
 import { buildFollowUpContext, buildUserPrompt, SYSTEM_PROMPT } from "../prompts/templates";
+import { fetchLiquidationMap } from "./coinglass-api";
 import { fetchHyperliquidChartData } from "./hyperliquid-api";
 import type {
   AnalysisErrorMessage,
@@ -37,7 +38,7 @@ const SUPPORTED_HOSTS = [
 
 function findTradingTab(callback: (tabId: number | null) => void): void {
   chrome.tabs.query({}, (tabs) => {
-    const match = tabs.find((t) => t.url && SUPPORTED_HOSTS.some((h) => t.url!.includes(h)));
+    const match = tabs.find((t) => t.url && SUPPORTED_HOSTS.some((h) => t.url?.includes(h)));
     callback(match?.id ?? null);
   });
 }
@@ -230,6 +231,23 @@ async function handleRequestAnalysis(msg: RequestAnalysisMessage): Promise<void>
     } catch (err) {
       console.error("[SW] Hyperliquid enrichment failed:", err);
       // Proceed with what we have — don't block the analysis entirely
+    }
+  }
+
+  // Fetch Coinglass liquidation map data in parallel with building the prompt.
+  // Best-effort — if unavailable, we proceed without it.
+  if (chartData.symbol !== "UNKNOWN" && chartData.price) {
+    try {
+      const priceNum = Number.parseFloat(chartData.price);
+      if (!Number.isNaN(priceNum)) {
+        const liqSummary = await fetchLiquidationMap(chartData.symbol, priceNum);
+        if (liqSummary) {
+          chartData = { ...chartData, liquidationSummary: liqSummary.rawText };
+          console.log("[SW] Liquidation map fetched:", liqSummary.rawText.slice(0, 120));
+        }
+      }
+    } catch (err) {
+      console.warn("[SW] Coinglass fetch failed (non-blocking):", err);
     }
   }
 

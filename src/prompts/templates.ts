@@ -2,29 +2,32 @@ import type { ChartData, RiskTolerance, TradingStyle } from "../types";
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-export const SYSTEM_PROMPT = `You are a professional trading analyst assistant. Your role is to analyze chart data provided by the user and give structured, objective insights.
+export const SYSTEM_PROMPT = `You are a concise, professional crypto trading analyst. Analyze chart data and give sharp, actionable insights.
 
-Always include:
-1. Trend assessment (bullish / bearish / neutral + reasoning)
-2. Key support and resistance levels (based on available data)
-3. Indicator signals (summarize each indicator provided)
-4. Trade setup suggestion (entry zone, target, stop-loss if applicable)
-5. Risk notes and conditions that would invalidate the setup
-6. A confidence level: Low / Medium / High
+Structure your response with these exact sections (use ## headings):
+## Trend: BULLISH / BEARISH / NEUTRAL
+## Key Levels
+## Indicator Signals
+## Trade Setup
+## Risk & Invalidation
 
-Always end with: "⚠️ This is not financial advice. Trade at your own risk."
-
-If data is missing or incomplete, work with what is available and note gaps.`;
+Rules:
+- Be brief and direct. No filler sentences.
+- Use bullet points within each section (2-4 bullets max). Do NOT use markdown tables — use bullets only.
+- Bold key prices and signal names.
+- If liquidation map data is provided, reference it — liquidation clusters act as price magnets and factor into targets/stops.
+- End with one line: "Confidence: High / Medium / Low — [one-sentence reason]"
+- Do NOT add a disclaimer footer.`;
 
 // ─── Risk Tolerance Modifiers ─────────────────────────────────────────────────
 
 const RISK_MODIFIERS: Record<RiskTolerance, string> = {
-  conservative: "Prioritize capital preservation. Only suggest high-confidence setups.",
-  moderate: "Balance risk and reward. Flag medium-confidence setups as speculative.",
-  aggressive: "Include higher-risk setups. Clearly label speculative plays.",
+  conservative: "Only flag high-confidence, well-defined setups. Skip speculative plays.",
+  moderate: "Balance R:R. Mention medium-confidence setups but label them speculative.",
+  aggressive: "Include higher-risk setups. Clearly label any speculative entries.",
 };
 
-// ─── Trading Style Templates ──────────────────────────────────────────────────
+// ─── Indicator Formatter ──────────────────────────────────────────────────────
 
 function formatIndicators(indicators: ChartData["indicators"]): string {
   const parts: string[] = [];
@@ -32,14 +35,13 @@ function formatIndicators(indicators: ChartData["indicators"]): string {
   if (indicators.rsi !== undefined) parts.push(`RSI(14): ${indicators.rsi}`);
   if (indicators.macd !== undefined)
     parts.push(
-      `MACD: ${indicators.macd} | Signal: ${indicators.macdSignal ?? "N/A"} | Histogram: ${indicators.macdHistogram ?? "N/A"}`
+      `MACD: ${indicators.macd} | Signal: ${indicators.macdSignal ?? "N/A"} | Hist: ${indicators.macdHistogram ?? "N/A"}`
     );
   if (indicators.ma20 !== undefined) parts.push(`MA20: ${indicators.ma20}`);
   if (indicators.ma50 !== undefined) parts.push(`MA50: ${indicators.ma50}`);
   if (indicators.ma200 !== undefined) parts.push(`MA200: ${indicators.ma200}`);
-  if (indicators.volume !== undefined) parts.push(`Volume: ${indicators.volume}`);
+  if (indicators.volume !== undefined) parts.push(`Vol: ${indicators.volume}`);
 
-  // Any extra indicators from DOM scraping (bbUpper, bbLower, etc.)
   const standardKeys = new Set([
     "rsi",
     "macd",
@@ -57,36 +59,39 @@ function formatIndicators(indicators: ChartData["indicators"]): string {
     }
   }
 
-  return parts.length > 0 ? parts.join(" | ") : "No indicators available";
+  return parts.length > 0 ? parts.join(" | ") : "None provided";
 }
 
 function buildBaseContext(data: ChartData): string {
   const priceStr = data.price ? ` | Price: ${data.price}` : "";
   const indicatorLine = `Indicators: ${formatIndicators(data.indicators)}`;
 
-  // Candle summary is appended as its own block when available (API-sourced data)
   const candleBlock = data.indicators.candleSummary
-    ? `\n\nPrice Action Data:\n${data.indicators.candleSummary}`
+    ? `\n\nRecent Price Action:\n${data.indicators.candleSummary}`
     : "";
 
-  return `Symbol: ${data.symbol} | Timeframe: ${data.timeframe}${priceStr}\n${indicatorLine}${candleBlock}`;
+  const liqBlock = data.liquidationSummary ? `\n\n${data.liquidationSummary}` : "";
+
+  return `Symbol: ${data.symbol} | Timeframe: ${data.timeframe}${priceStr}\n${indicatorLine}${candleBlock}${liqBlock}`;
 }
+
+// ─── Trading Style Templates ──────────────────────────────────────────────────
 
 const STYLE_TEMPLATES: Record<TradingStyle, (data: ChartData) => string> = {
   scalp: (data) =>
-    `Analyze this chart for a scalp trade opportunity (short-duration, quick in/out):
+    `Scalp trade analysis (minutes to hours):
 ${buildBaseContext(data)}
-Focus on: momentum, short-term price action, tight S/R levels.`,
+Focus on: momentum, micro S/R, quick in/out.`,
 
   swing: (data) =>
-    `Analyze this chart for a swing trade setup (holding hours to a few days):
+    `Swing trade analysis (hours to a few days):
 ${buildBaseContext(data)}
-Focus on: trend continuation/reversal, key levels, indicator confluence.`,
+Focus on: trend structure, key levels, indicator confluence.`,
 
   position: (data) =>
-    `Analyze this chart for a position trade (multi-day to multi-week hold):
+    `Position trade analysis (days to weeks):
 ${buildBaseContext(data)}
-Focus on: macro trend, major S/R, risk/reward ratio, fundamental context.`,
+Focus on: macro trend, major S/R, R:R ratio.`,
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -98,12 +103,12 @@ export function buildUserPrompt(
 ): string {
   const stylePrompt = STYLE_TEMPLATES[tradingStyle](chartData);
   const riskModifier = RISK_MODIFIERS[riskTolerance];
-  return `${stylePrompt}\n\nRisk guidance: ${riskModifier}`;
+  return `${stylePrompt}\n\nRisk: ${riskModifier}`;
 }
 
 export function buildFollowUpContext(chartData: ChartData | null): string {
   if (!chartData) return "";
-  return `\n\n[Current chart context: ${chartData.symbol} on ${chartData.timeframe}${chartData.price ? ` at ${chartData.price}` : ""}]`;
+  return `\n\n[Context: ${chartData.symbol} ${chartData.timeframe}${chartData.price ? ` @ ${chartData.price}` : ""}]`;
 }
 
 export { RISK_MODIFIERS, STYLE_TEMPLATES, formatIndicators };

@@ -88,8 +88,7 @@ const HOST_SYMBOL_SCRAPERS: Partial<Record<KnownHost, () => string | null>> = {
     const tradeIdx = parts.indexOf("trade");
     if (tradeIdx !== -1 && parts[tradeIdx + 2])
       return (parts[tradeIdx + 1] + parts[tradeIdx + 2]).toUpperCase();
-    if (tradeIdx !== -1 && parts[tradeIdx + 1])
-      return parts[tradeIdx + 1].toUpperCase();
+    if (tradeIdx !== -1 && parts[tradeIdx + 1]) return parts[tradeIdx + 1].toUpperCase();
     return null;
   },
   kraken: () => {
@@ -113,7 +112,9 @@ function tryQueryText(selectors: readonly string[]): string | null {
     try {
       const el = document.querySelector(selector);
       if (el?.textContent?.trim()) return el.textContent.trim();
-    } catch { /* continue */ }
+    } catch {
+      /* continue */
+    }
   }
   return null;
 }
@@ -152,13 +153,16 @@ function scrapeTimeframe(host: KnownHost): string {
       if (text && /^(1|3|5|15|30|45|60|120|180|240|D|W|M|1D|1W|1M|\d+[mhDW])$/i.test(text)) {
         return text;
       }
-    } catch { /* continue */ }
+    } catch {
+      /* continue */
+    }
   }
 
   // 2. data attribute
   const byData = document.querySelector("[data-active-chart-timeframe]");
-  if (byData?.getAttribute("data-active-chart-timeframe")) {
-    return byData.getAttribute("data-active-chart-timeframe")!;
+  const byDataAttr = byData?.getAttribute("data-active-chart-timeframe");
+  if (byDataAttr) {
+    return byDataAttr;
   }
 
   // 3. Scan ALL buttons for one with an active/selected class and a timeframe label
@@ -278,7 +282,9 @@ function scrapeLegendIndicators(): IndicatorValues {
         if (match?.[1]) indicators.volume = match[1];
       }
     }
-  } catch { /* return whatever we have */ }
+  } catch {
+    /* return whatever we have */
+  }
 
   return indicators;
 }
@@ -339,9 +345,8 @@ function sendChartDataToBackground(data: ChartData): void {
   // on supported hosts always send even if partial, so the side panel
   // can at least show the symbol and trigger an analysis.
   const host = detectHost();
-  const hasAnything = data.symbol !== "UNKNOWN" ||
-    Object.keys(data.indicators).length > 0 ||
-    !!data.price;
+  const hasAnything =
+    data.symbol !== "UNKNOWN" || Object.keys(data.indicators).length > 0 || !!data.price;
 
   if (host === "unknown" && !hasAnything) return;
 
@@ -349,7 +354,9 @@ function sendChartDataToBackground(data: ChartData): void {
     type: "CHART_DATA_UPDATE",
     payload: data,
   };
-  chrome.runtime.sendMessage(message).catch(() => { /* extension reloaded */ });
+  chrome.runtime.sendMessage(message).catch(() => {
+    /* extension reloaded */
+  });
 }
 
 // ─── MutationObserver ─────────────────────────────────────────────────────────

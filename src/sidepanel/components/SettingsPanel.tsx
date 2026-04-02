@@ -161,6 +161,7 @@ export function SettingsPanel({
             }}
           />
           <button
+            type="button"
             onClick={() => setApiKeyMasked((v) => !v)}
             style={{
               padding: "7px 9px",
@@ -179,6 +180,7 @@ export function SettingsPanel({
         </div>
         <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
           <button
+            type="button"
             onClick={handleSaveApiKey}
             style={{
               flex: 1,
@@ -194,6 +196,7 @@ export function SettingsPanel({
             {saved ? "Saved ✓" : "Save Key"}
           </button>
           <button
+            type="button"
             onClick={handleTestConnection}
             disabled={connectionStatus === "testing"}
             style={{
@@ -282,6 +285,7 @@ export function SettingsPanel({
             </div>
           </div>
           <button
+            type="button"
             onClick={() => onAutoRefreshChange(!autoRefresh)}
             style={{
               width: "42px",

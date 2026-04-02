@@ -50,9 +50,10 @@
     "https://pro.kraken.com/*",
     "https://www.okx.com/*",
     "https://www.coinbase.com/*",
-    "https://api.anthropic.com/*"
+    "https://api.anthropic.com/*",
+    "https://open-api.coinglass.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.anthropic.com https://api.hyperliquid.xyz"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.anthropic.com https://api.hyperliquid.xyz https://open-api.coinglass.com"
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RiskTolerance, StorageData, TradingStyle } from "../types";
 import { AnalysisPanel } from "./components/AnalysisPanel";
 import { ChatThread } from "./components/ChatThread";
@@ -23,8 +23,15 @@ export default function App() {
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   const { chartData, refreshChartData } = useChartData();
-  const { messages, latestAnalysis, isLoading, error, requestAnalysis, sendChatMessage, clearConversation } =
-    useAnalysis();
+  const {
+    messages,
+    latestAnalysis,
+    isLoading,
+    error,
+    requestAnalysis,
+    sendChatMessage,
+    clearConversation,
+  } = useAnalysis();
 
   // Load persisted preferences
   useEffect(() => {
@@ -55,14 +62,26 @@ export default function App() {
     chrome.storage.local.set({ autoRefresh: enabled });
   }, []);
 
-  // Auto-refresh: trigger analysis when chartData changes (if enabled)
+  // Keep a ref to the latest preferences so the auto-refresh effect can read
+  // current values without needing to list them as dependencies (which would
+  // cause a re-analysis every time the user changes a setting, not just when
+  // the chart updates).
+  const autoRefreshRef = useRef(autoRefresh);
+  const tradingStyleRef = useRef(tradingStyle);
+  const riskToleranceRef = useRef(riskTolerance);
+  const requestAnalysisRef = useRef(requestAnalysis);
+  useEffect(() => { autoRefreshRef.current = autoRefresh; }, [autoRefresh]);
+  useEffect(() => { tradingStyleRef.current = tradingStyle; }, [tradingStyle]);
+  useEffect(() => { riskToleranceRef.current = riskTolerance; }, [riskTolerance]);
+  useEffect(() => { requestAnalysisRef.current = requestAnalysis; }, [requestAnalysis]);
+
+  // Auto-refresh: trigger analysis only when chartData itself changes
   useEffect(() => {
-    if (autoRefresh && chartData) {
-      requestAnalysis(chartData, tradingStyle, riskTolerance);
+    if (!chartData) return;
+    if (autoRefreshRef.current) {
+      requestAnalysisRef.current(chartData, tradingStyleRef.current, riskToleranceRef.current);
     }
-    // Only trigger when chartData updates, not on every preference change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartData?.scrapedAt]);
+  }, [chartData]);
 
   const handleRequestAnalysis = useCallback(() => {
     if (!chartData) return;
@@ -99,9 +118,7 @@ export default function App() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
           <span style={{ fontSize: "18px" }}>📈</span>
-          <span style={{ fontWeight: 700, fontSize: "14px", color: "#f8fafc" }}>
-            TV AI Analyst
-          </span>
+          <span style={{ fontWeight: 700, fontSize: "14px", color: "#f8fafc" }}>TV AI Analyst</span>
           {isLoading && (
             <span style={{ marginLeft: "auto", fontSize: "11px", color: "#3b82f6" }}>
               ⟳ Analyzing…
@@ -112,6 +129,7 @@ export default function App() {
         <div style={{ display: "flex", gap: "2px" }}>
           {TABS.map((tab) => (
             <button
+              type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{

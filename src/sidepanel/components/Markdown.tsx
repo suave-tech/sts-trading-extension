@@ -1,6 +1,6 @@
 /**
  * Lightweight zero-dependency markdown renderer for the analysis panel.
- * Handles the subset Claude produces: headings, bold, bullets, horizontal rules.
+ * Handles: headings, bold, bullets, horizontal rules, and pipe tables.
  * No external libraries — keeps the extension self-contained.
  */
 
@@ -11,10 +11,14 @@ const COLORS = {
   h2: "#e2e8f0",
   h3: "#cbd5e1",
   bullet: "#94a3b8",
-  rule: "#1e293b",
+  rule: "#2d3748",
   text: "#cbd5e1",
   bold: "#f1f5f9",
   disclaimer: "#475569",
+  tableBorder: "#1e293b",
+  tableHeader: "#1e293b",
+  tableHeaderText: "#94a3b8",
+  tableRowAlt: "#0f1117",
   badge: {
     bullish: { bg: "#14532d", color: "#4ade80" },
     bearish: { bg: "#450a0a", color: "#f87171" },
@@ -95,6 +99,85 @@ function BadgeChip({ badge }: { badge: Badge }) {
   );
 }
 
+// ─── Table renderer ───────────────────────────────────────────────────────────
+
+function isTableRow(line: string): boolean {
+  return line.trimStart().startsWith("|");
+}
+
+function isSeparatorRow(line: string): boolean {
+  // e.g. |---|---|---| or |:--|:--:|--:|
+  return /^\s*\|[\s|:\-]+\|\s*$/.test(line);
+}
+
+function parseTableCells(line: string): string[] {
+  return line
+    .replace(/^\s*\|/, "")   // strip leading |
+    .replace(/\|\s*$/, "")   // strip trailing |
+    .split("|")
+    .map((c) => c.trim());
+}
+
+function MarkdownTable({ rows }: { rows: string[] }) {
+  if (rows.length === 0) return null;
+
+  // First row = header, second row = separator (skip), rest = body
+  const headerCells = parseTableCells(rows[0]);
+  const bodyRows = rows
+    .slice(1)
+    .filter((r) => !isSeparatorRow(r))
+    .map(parseTableCells);
+
+  const cellStyle = (isHeader: boolean, colIdx: number): React.CSSProperties => ({
+    padding: "5px 8px",
+    fontSize: "11px",
+    color: isHeader ? COLORS.tableHeaderText : COLORS.text,
+    fontWeight: isHeader ? 600 : 400,
+    textAlign: colIdx === 0 ? "left" : "left",
+    borderBottom: `1px solid ${COLORS.tableBorder}`,
+    lineHeight: "1.5",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+  });
+
+  return (
+    <div
+      style={{
+        overflowX: "auto",
+        margin: "6px 0 10px",
+        borderRadius: "6px",
+        border: `1px solid ${COLORS.tableBorder}`,
+      }}
+    >
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+        <thead>
+          <tr style={{ background: COLORS.tableHeader }}>
+            {headerCells.map((cell, ci) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: static header columns
+              <th key={ci} style={cellStyle(true, ci)}>
+                {renderInline(cell)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {bodyRows.map((cells, ri) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: table rows have no stable id
+            <tr key={ri} style={{ background: ri % 2 === 1 ? COLORS.tableRowAlt : "transparent" }}>
+              {cells.map((cell, ci) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static columns per row
+                <td key={ci} style={cellStyle(false, ci)}>
+                  {renderInline(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Block renderers ──────────────────────────────────────────────────────────
 
 function Heading({ level, text }: { level: 1 | 2 | 3; text: string }) {
@@ -111,7 +194,7 @@ function Heading({ level, text }: { level: 1 | 2 | 3; text: string }) {
         fontWeight: level === 1 ? 700 : 600,
         color: COLORS[`h${level}` as keyof typeof COLORS] as string,
         margin: margins[level],
-        borderBottom: level <= 2 ? "1px solid #1e293b" : "none",
+        borderBottom: level <= 2 ? `1px solid ${COLORS.tableBorder}` : "none",
         paddingBottom: level <= 2 ? "4px" : "0",
         display: "flex",
         alignItems: "center",
@@ -170,15 +253,16 @@ export function Markdown({ content }: { content: string }) {
   const lines = content.split("\n");
   const elements: ReactNode[] = [];
   let key = 0;
+  let i = 0;
 
-  for (let i = 0; i < lines.length; i++) {
+  while (i < lines.length) {
     const raw = lines[i];
     const line = raw.trimEnd();
 
     // Blank line
     if (line.trim() === "") {
-      // Only add spacer if previous wasn't already a block spacer
       elements.push(<div key={key++} style={{ height: "2px" }} />);
+      i++;
       continue;
     }
 
@@ -190,6 +274,7 @@ export function Markdown({ content }: { content: string }) {
           style={{ border: "none", borderTop: `1px solid ${COLORS.rule}`, margin: "10px 0" }}
         />
       );
+      i++;
       continue;
     }
 
@@ -198,6 +283,18 @@ export function Markdown({ content }: { content: string }) {
     if (hMatch) {
       const level = Math.min(hMatch[1].length, 3) as 1 | 2 | 3;
       elements.push(<Heading key={key++} level={level} text={hMatch[2]} />);
+      i++;
+      continue;
+    }
+
+    // Table — collect all consecutive pipe rows
+    if (isTableRow(line)) {
+      const tableRows: string[] = [];
+      while (i < lines.length && isTableRow(lines[i].trimEnd())) {
+        tableRows.push(lines[i].trimEnd());
+        i++;
+      }
+      elements.push(<MarkdownTable key={key++} rows={tableRows} />);
       continue;
     }
 
@@ -206,11 +303,13 @@ export function Markdown({ content }: { content: string }) {
     if (bulletMatch) {
       const depth = Math.floor(bulletMatch[1].length / 2);
       elements.push(<BulletItem key={key++} text={bulletMatch[3]} depth={depth} />);
+      i++;
       continue;
     }
 
     // Everything else is a paragraph
     elements.push(<Paragraph key={key++} text={line} />);
+    i++;
   }
 
   return <div style={{ fontSize: "13px", lineHeight: "1.6" }}>{elements}</div>;

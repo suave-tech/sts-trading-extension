@@ -17,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["chrome", "vitest/globals"]
   },
   "include": ["src", "src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]

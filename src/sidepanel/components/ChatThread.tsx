@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ChatMessage } from "../../types";
+import { Markdown } from "./Markdown";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -30,7 +31,7 @@ function TypingIndicator() {
           }}
         />
       ))}
-      <style>{`@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }`}</style>
+      <style>{"@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }"}</style>
     </div>
   );
 }
@@ -48,18 +49,21 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     >
       <div
         style={{
-          maxWidth: "88%",
+          maxWidth: "92%",
           padding: "8px 12px",
           borderRadius: isUser ? "12px 12px 3px 12px" : "12px 12px 12px 3px",
           background: isUser ? "#1d4ed8" : "#1e293b",
           color: "#e2e8f0",
-          fontSize: "13px",
-          lineHeight: "1.55",
-          whiteSpace: "pre-wrap",
           wordBreak: "break-word",
         }}
       >
-        {message.content}
+        {isUser ? (
+          <div style={{ fontSize: "13px", lineHeight: "1.55", whiteSpace: "pre-wrap" }}>
+            {message.content}
+          </div>
+        ) : (
+          <Markdown content={message.content} />
+        )}
         <div
           style={{
             fontSize: "10px",
@@ -81,6 +85,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 export function ChatThread({ messages, isLoading, onClear }: ChatThreadProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll-to-bottom intentionally tracks messages+isLoading as triggers
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
@@ -105,6 +110,7 @@ export function ChatThread({ messages, isLoading, onClear }: ChatThreadProps) {
         </span>
         {messages.length > 0 && (
           <button
+            type="button"
             onClick={onClear}
             style={{
               background: "none",
@@ -140,7 +146,7 @@ export function ChatThread({ messages, isLoading, onClear }: ChatThreadProps) {
             <div>Run an analysis first, then ask follow-up questions</div>
           </div>
         ) : (
-          messages.map((msg, i) => <MessageBubble key={i} message={msg} />)
+          messages.map((msg) => <MessageBubble key={`${msg.role}-${msg.timestamp}`} message={msg} />)
         )}
         {isLoading && <TypingIndicator />}
         <div ref={bottomRef} />
