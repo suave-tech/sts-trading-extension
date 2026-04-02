@@ -2,29 +2,28 @@ import type { ChartData, RiskTolerance, TradingStyle } from "../types";
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-export const SYSTEM_PROMPT = `You are a concise, professional crypto trading analyst. Analyze chart data and give sharp, actionable insights.
+export const SYSTEM_PROMPT = `You are a concise, professional crypto trading analyst. Analyze chart data and give sharp, actionable insights. This is not financial advice.
 
-Structure your response with these exact sections (use ## headings):
-## Trend: BULLISH / BEARISH / NEUTRAL
-## Key Levels
-## Indicator Signals
-## Trade Setup
-## Risk & Invalidation
+Structure your response covering these areas:
+- Trend assessment: overall direction (BULLISH / BEARISH / NEUTRAL)
+- Key levels: support and resistance zones
+- Indicator signals: RSI, MACD, moving averages, volume
+- Trade setup: entry, target, and stop-loss
+- Risk notes: invalidation conditions and position sizing
 
 Rules:
 - Be brief and direct. No filler sentences.
 - Use bullet points within each section (2-4 bullets max). Do NOT use markdown tables — use bullets only.
 - Bold key prices and signal names.
 - If liquidation map data is provided, reference it — liquidation clusters act as price magnets and factor into targets/stops.
-- End with one line: "Confidence: High / Medium / Low — [one-sentence reason]"
-- Do NOT add a disclaimer footer.`;
+- End with one line stating your confidence level and a one-sentence reason.`;
 
 // ─── Risk Tolerance Modifiers ─────────────────────────────────────────────────
 
 const RISK_MODIFIERS: Record<RiskTolerance, string> = {
-  conservative: "Only flag high-confidence, well-defined setups. Skip speculative plays.",
-  moderate: "Balance R:R. Mention medium-confidence setups but label them speculative.",
-  aggressive: "Include higher-risk setups. Clearly label any speculative entries.",
+  conservative: "Prioritize capital preservation. Only flag high-confidence, well-defined setups. Skip speculative plays.",
+  moderate: "Balance risk and reward. Mention medium-confidence setups but label them speculative.",
+  aggressive: "Include higher-risk setups with asymmetric upside. Clearly label any speculative entries.",
 };
 
 // ─── Indicator Formatter ──────────────────────────────────────────────────────
@@ -32,15 +31,17 @@ const RISK_MODIFIERS: Record<RiskTolerance, string> = {
 function formatIndicators(indicators: ChartData["indicators"]): string {
   const parts: string[] = [];
 
-  if (indicators.rsi !== undefined) parts.push(`RSI(14): ${indicators.rsi}`);
-  if (indicators.macd !== undefined)
-    parts.push(
-      `MACD: ${indicators.macd} | Signal: ${indicators.macdSignal ?? "N/A"} | Hist: ${indicators.macdHistogram ?? "N/A"}`
-    );
+  if (indicators.rsi !== undefined) parts.push(`RSI: ${indicators.rsi}`);
+  if (indicators.macd !== undefined) {
+    let macdStr = `MACD: ${indicators.macd}`;
+    if (indicators.macdSignal !== undefined) macdStr += ` | Signal: ${indicators.macdSignal}`;
+    if (indicators.macdHistogram !== undefined) macdStr += ` | Histogram: ${indicators.macdHistogram}`;
+    parts.push(macdStr);
+  }
   if (indicators.ma20 !== undefined) parts.push(`MA20: ${indicators.ma20}`);
   if (indicators.ma50 !== undefined) parts.push(`MA50: ${indicators.ma50}`);
   if (indicators.ma200 !== undefined) parts.push(`MA200: ${indicators.ma200}`);
-  if (indicators.volume !== undefined) parts.push(`Vol: ${indicators.volume}`);
+  if (indicators.volume !== undefined) parts.push(`Volume: ${indicators.volume}`);
 
   const standardKeys = new Set([
     "rsi",
@@ -59,7 +60,7 @@ function formatIndicators(indicators: ChartData["indicators"]): string {
     }
   }
 
-  return parts.length > 0 ? parts.join(" | ") : "None provided";
+  return parts.length > 0 ? parts.join(" | ") : "No indicators available";
 }
 
 function buildBaseContext(data: ChartData): string {
@@ -79,19 +80,19 @@ function buildBaseContext(data: ChartData): string {
 
 const STYLE_TEMPLATES: Record<TradingStyle, (data: ChartData) => string> = {
   scalp: (data) =>
-    `Scalp trade analysis (minutes to hours):
+    `This is a scalp trade analysis (minutes to hours):
 ${buildBaseContext(data)}
-Focus on: momentum, micro S/R, quick in/out.`,
+Focus on: momentum, micro support/resistance, quick in/out entries.`,
 
   swing: (data) =>
-    `Swing trade analysis (hours to a few days):
+    `This is a swing trade analysis (hours to a few days):
 ${buildBaseContext(data)}
-Focus on: trend structure, key levels, indicator confluence.`,
+Focus on: trend continuation, key levels, indicator confluence.`,
 
   position: (data) =>
-    `Position trade analysis (days to weeks):
+    `This is a position trade analysis (days to weeks):
 ${buildBaseContext(data)}
-Focus on: macro trend, major S/R, R:R ratio.`,
+Focus on: macro trend direction, major support/resistance, R:R ratio.`,
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────────

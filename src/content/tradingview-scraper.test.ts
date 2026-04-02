@@ -38,15 +38,22 @@ function symbolFromBinancePath(pathname: string): string | null {
 }
 
 function symbolFromBybitPath(pathname: string): string | null {
+  const CATEGORY_SEGMENTS = new Set(["spot", "usdt", "linear", "inverse", "option"]);
   const parts = pathname.split("/").filter(Boolean);
   const tradeIdx = parts.indexOf("trade");
-  if (tradeIdx !== -1 && parts[tradeIdx + 2]) {
-    return (parts[tradeIdx + 1] + parts[tradeIdx + 2]).toUpperCase();
+  if (tradeIdx === -1) return null;
+  // Skip the first segment after "trade" if it's a market category
+  let cursor = tradeIdx + 1;
+  if (cursor < parts.length && CATEGORY_SEGMENTS.has(parts[cursor].toLowerCase())) cursor++;
+  const remaining = parts.slice(cursor);
+  if (remaining.length === 0) return null;
+  // /trade/spot/BTC/USDT → remaining = ["BTC", "USDT"] → concat two ticker parts
+  // /trade/usdt/ETHUSDT  → remaining = ["ETHUSDT"]      → single already-combined symbol
+  if (remaining.length >= 2 && remaining[0].length <= 5) {
+    // Two short ticker components (e.g. BTC + USDT)
+    return (remaining[0] + remaining[1]).toUpperCase();
   }
-  if (tradeIdx !== -1 && parts[tradeIdx + 1] && !parts[tradeIdx + 2]) {
-    return parts[tradeIdx + 1].toUpperCase();
-  }
-  return null;
+  return remaining[0].toUpperCase();
 }
 
 function symbolFromKrakenPath(pathname: string): string | null {
@@ -65,7 +72,7 @@ function symbolFromCoinbasePath(pathname: string): string | null {
 }
 
 function formatSymbolFromTitle(title: string): string | null {
-  const match = title.match(/^([A-Z0-9.:/-]+)\s*[—–|/\\]/);
+  const match = title.match(/^([A-Z0-9.:/-]+)\s*[—–\-|/\\]/);
   return match?.[1]?.replace(/\//g, "") ?? null;
 }
 

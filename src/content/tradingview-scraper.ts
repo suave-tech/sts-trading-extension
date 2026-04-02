@@ -84,12 +84,16 @@ const HOST_SYMBOL_SCRAPERS: Partial<Record<KnownHost, () => string | null>> = {
     return null;
   },
   bybit: () => {
+    const CATEGORY_SEGMENTS = new Set(["spot", "usdt", "linear", "inverse", "option"]);
     const parts = window.location.pathname.split("/").filter(Boolean);
     const tradeIdx = parts.indexOf("trade");
-    if (tradeIdx !== -1 && parts[tradeIdx + 2])
-      return (parts[tradeIdx + 1] + parts[tradeIdx + 2]).toUpperCase();
-    if (tradeIdx !== -1 && parts[tradeIdx + 1]) return parts[tradeIdx + 1].toUpperCase();
-    return null;
+    if (tradeIdx === -1) return null;
+    let cursor = tradeIdx + 1;
+    if (cursor < parts.length && CATEGORY_SEGMENTS.has(parts[cursor].toLowerCase())) cursor++;
+    const remaining = parts.slice(cursor);
+    if (remaining.length === 0) return null;
+    if (remaining.length >= 2 && remaining[0].length <= 5) return (remaining[0] + remaining[1]).toUpperCase();
+    return remaining[0].toUpperCase();
   },
   kraken: () => {
     const match = window.location.pathname.match(/\/trade\/([A-Z0-9-]+)/i);
@@ -137,7 +141,7 @@ function scrapeSymbol(host: KnownHost): string {
   // 3. Page title: "BTCUSDT — TradingView", "BTC/USDT | Hyperliquid"
   const title = document.title;
   if (title) {
-    const match = title.match(/^([A-Z0-9.:/-]+)\s*[—–|/\\]/);
+    const match = title.match(/^([A-Z0-9.:/-]+)\s*[—–\-|/\\]/);
     if (match?.[1]) return match[1].replace(/\//g, "");
   }
 
