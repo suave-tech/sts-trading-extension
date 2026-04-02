@@ -92,7 +92,8 @@ const HOST_SYMBOL_SCRAPERS: Partial<Record<KnownHost, () => string | null>> = {
     if (cursor < parts.length && CATEGORY_SEGMENTS.has(parts[cursor].toLowerCase())) cursor++;
     const remaining = parts.slice(cursor);
     if (remaining.length === 0) return null;
-    if (remaining.length >= 2 && remaining[0].length <= 5) return (remaining[0] + remaining[1]).toUpperCase();
+    if (remaining.length >= 2 && remaining[0].length <= 5)
+      return (remaining[0] + remaining[1]).toUpperCase();
     return remaining[0].toUpperCase();
   },
   kraken: () => {

@@ -21,9 +21,11 @@ Rules:
 // ─── Risk Tolerance Modifiers ─────────────────────────────────────────────────
 
 const RISK_MODIFIERS: Record<RiskTolerance, string> = {
-  conservative: "Prioritize capital preservation. Only flag high-confidence, well-defined setups. Skip speculative plays.",
+  conservative:
+    "Prioritize capital preservation. Only flag high-confidence, well-defined setups. Skip speculative plays.",
   moderate: "Balance risk and reward. Mention medium-confidence setups but label them speculative.",
-  aggressive: "Include higher-risk setups with asymmetric upside. Clearly label any speculative entries.",
+  aggressive:
+    "Include higher-risk setups with asymmetric upside. Clearly label any speculative entries.",
 };
 
 // ─── Indicator Formatter ──────────────────────────────────────────────────────
@@ -35,7 +37,8 @@ function formatIndicators(indicators: ChartData["indicators"]): string {
   if (indicators.macd !== undefined) {
     let macdStr = `MACD: ${indicators.macd}`;
     if (indicators.macdSignal !== undefined) macdStr += ` | Signal: ${indicators.macdSignal}`;
-    if (indicators.macdHistogram !== undefined) macdStr += ` | Histogram: ${indicators.macdHistogram}`;
+    if (indicators.macdHistogram !== undefined)
+      macdStr += ` | Histogram: ${indicators.macdHistogram}`;
     parts.push(macdStr);
   }
   if (indicators.ma20 !== undefined) parts.push(`MA20: ${indicators.ma20}`);
