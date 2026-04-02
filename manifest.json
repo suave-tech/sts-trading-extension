@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "TradingView AI Analyst",
+  "version": "1.0.0",
+  "description": "AI-powered trade analysis for TradingView charts, powered by Claude Sonnet.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open AI Analysis Panel",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.tradingview.com/chart/*",
+        "https://app.hyperliquid.xyz/trade/*",
+        "https://www.binance.com/en/trade/*",
+        "https://www.bybit.com/trade/*",
+        "https://pro.kraken.com/app/trade/*",
+        "https://www.okx.com/trade-spot/*",
+        "https://www.coinbase.com/advanced-trade/*"
+      ],
+      "js": ["src/content/tradingview-scraper.ts"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ],
+  "permissions": ["storage", "sidePanel", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://www.tradingview.com/*",
+    "https://app.hyperliquid.xyz/*",
+    "https://www.binance.com/*",
+    "https://www.bybit.com/*",
+    "https://pro.kraken.com/*",
+    "https://www.okx.com/*",
+    "https://www.coinbase.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.anthropic.com"
+  }
+}

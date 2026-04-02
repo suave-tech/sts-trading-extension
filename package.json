@@ -1,0 +1,37 @@
+{
+  "name": "trading-extension",
+  "version": "1.0.0",
+  "description": "TradingView AI Analysis Chrome Extension powered by Claude Sonnet",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome lint ./src",
+    "format": "biome format --write ./src",
+    "check": "biome check --apply ./src",
+    "prepare": "lefthook install"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/chrome": "^0.0.268",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.8",
+    "jsdom": "^25.0.1",
+    "lefthook": "^1.8.4",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vite-plugin-web-extension": "^4.2.0",
+    "vitest": "^2.1.8"
+  }
+}
