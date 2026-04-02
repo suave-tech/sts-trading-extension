@@ -31,7 +31,11 @@ function TypingIndicator() {
           }}
         />
       ))}
-      <style>{"@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }"}</style>
+      <style>
+        {
+          "@keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }"
+        }
+      </style>
     </div>
   );
 }
@@ -146,7 +150,9 @@ export function ChatThread({ messages, isLoading, onClear }: ChatThreadProps) {
             <div>Run an analysis first, then ask follow-up questions</div>
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={`${msg.role}-${msg.timestamp}`} message={msg} />)
+          messages.map((msg) => (
+            <MessageBubble key={`${msg.role}-${msg.timestamp}`} message={msg} />
+          ))
         )}
         {isLoading && <TypingIndicator />}
         <div ref={bottomRef} />

@@ -4,7 +4,15 @@ import { describe, expect, it } from "vitest";
 // (The module itself can't be imported in JSDOM because it calls chrome.runtime
 //  at module level — so we test the extractable pure logic directly.)
 
-type KnownHost = "tradingview" | "hyperliquid" | "binance" | "bybit" | "kraken" | "okx" | "coinbase" | "unknown";
+type KnownHost =
+  | "tradingview"
+  | "hyperliquid"
+  | "binance"
+  | "bybit"
+  | "kraken"
+  | "okx"
+  | "coinbase"
+  | "unknown";
 
 function detectHostFromHostname(hostname: string): KnownHost {
   if (hostname.includes("tradingview.com")) return "tradingview";

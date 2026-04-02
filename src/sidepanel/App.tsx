@@ -70,10 +70,18 @@ export default function App() {
   const tradingStyleRef = useRef(tradingStyle);
   const riskToleranceRef = useRef(riskTolerance);
   const requestAnalysisRef = useRef(requestAnalysis);
-  useEffect(() => { autoRefreshRef.current = autoRefresh; }, [autoRefresh]);
-  useEffect(() => { tradingStyleRef.current = tradingStyle; }, [tradingStyle]);
-  useEffect(() => { riskToleranceRef.current = riskTolerance; }, [riskTolerance]);
-  useEffect(() => { requestAnalysisRef.current = requestAnalysis; }, [requestAnalysis]);
+  useEffect(() => {
+    autoRefreshRef.current = autoRefresh;
+  }, [autoRefresh]);
+  useEffect(() => {
+    tradingStyleRef.current = tradingStyle;
+  }, [tradingStyle]);
+  useEffect(() => {
+    riskToleranceRef.current = riskTolerance;
+  }, [riskTolerance]);
+  useEffect(() => {
+    requestAnalysisRef.current = requestAnalysis;
+  }, [requestAnalysis]);
 
   // Auto-refresh: trigger analysis only when chartData itself changes
   useEffect(() => {

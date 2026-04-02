@@ -112,8 +112,8 @@ function isSeparatorRow(line: string): boolean {
 
 function parseTableCells(line: string): string[] {
   return line
-    .replace(/^\s*\|/, "")   // strip leading |
-    .replace(/\|\s*$/, "")   // strip trailing |
+    .replace(/^\s*\|/, "") // strip leading |
+    .replace(/\|\s*$/, "") // strip trailing |
     .split("|")
     .map((c) => c.trim());
 }
